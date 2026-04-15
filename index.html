@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Coberturas - Banco de Horas</title>
+    <!-- Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Animações das notificações */
+        .toast-enter { transform: translateY(100%); opacity: 0; }
+        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s ease-out; }
+        .toast-exit { transform: translateY(0); opacity: 1; }
+        .toast-exit-active { transform: translateY(100%); opacity: 0; transition: all 0.3s ease-in; }
+        
+        /* Animação do Modal */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s ease-out; }
+
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800 pb-10">
+
+    <!-- Tela de Carregamento (Enquanto conecta ao Banco de Dados) -->
+    <div id="loading-screen" class="fixed inset-0 bg-slate-50 z-[100] flex flex-col items-center justify-center">
+        <div class="loader mb-4"></div>
+        <p class="text-slate-500 font-medium">Sincronizando dados com a nuvem...</p>
+    </div>
+
+    <!-- Container Principal -->
+    <div class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- Cabeçalho -->
+        <header class="mb-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">Banco de Horas</h1>
+                <p class="text-slate-500 mt-1 flex items-center gap-2 justify-center sm:justify-start">
+                    Gestão de coberturas e saldos
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800" title="Conectado à Nuvem">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Online
+                    </span>
+                </p>
+            </div>
+            
+            <!-- Botões de Ação do Gestor -->
+            <div class="flex items-center gap-2">
+                <button onclick="window.requestPasswordChange()" class="text-sm px-4 py-2 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-lg font-medium transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    Senha
+                </button>
+                <button onclick="window.requestReset()" class="text-sm px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg font-medium transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    Zerar Sistema
+                </button>
+            </div>
+        </header>
+
+        <!-- Dashboard de Saldos -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Card Funcionário A -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-center justify-between group">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <h2 class="text-lg font-semibold text-slate-700" id="display-name-A">Carregando...</h2>
+                        <button onclick="window.requestNameChange('A')" class="text-slate-300 hover:text-blue-500 transition-colors p-1" title="Editar nome">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                    </div>
+                    <p class="text-sm text-slate-400">Saldo atual</p>
+                </div>
+                <div class="text-right">
+                    <span id="balance-A" class="text-4xl font-bold text-slate-400">0h</span>
+                </div>
+            </div>
+
+            <!-- Card Funcionário B -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-center justify-between group">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <h2 class="text-lg font-semibold text-slate-700" id="display-name-B">Carregando...</h2>
+                        <button onclick="window.requestNameChange('B')" class="text-slate-300 hover:text-blue-500 transition-colors p-1" title="Editar nome">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                    </div>
+                    <p class="text-sm text-slate-400">Saldo atual</p>
+                </div>
+                <div class="text-right">
+                    <span id="balance-B" class="text-4xl font-bold text-slate-400">0h</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Formulário de Nova Cobertura -->
+            <div class="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-100 p-6 h-fit">
+                <h3 class="text-lg font-semibold text-slate-800 mb-4">Registrar Cobertura</h3>
+                
+                <form id="coverage-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                        <input type="date" id="input-date" required
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-slate-50">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Quem cobriu?</label>
+                        <select id="input-coverer" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-slate-50"></select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Quem foi coberto?</label>
+                        <select id="input-covered" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-slate-50"></select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Início</label>
+                            <input type="time" id="input-start" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-slate-50">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Fim</label>
+                            <input type="time" id="input-end" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-slate-50">
+                        </div>
+                    </div>
+                    
+                    <div id="hours-preview" class="text-sm text-slate-500 text-center hidden">
+                        Tempo total: <span id="hours-preview-val" class="font-bold text-blue-600">0h</span>
+                    </div>
+
+                    <button type="submit" 
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors mt-2 shadow-sm">
+                        Registrar Transferência
+                    </button>
+                </form>
+            </div>
+
+            <!-- Histórico de Movimentações -->
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                <h3 class="text-lg font-semibold text-slate-800 mb-4">Histórico Recente</h3>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-sm text-slate-500 bg-slate-50">
+                                <th class="py-3 px-4 font-medium rounded-tl-lg">Data</th>
+                                <th class="py-3 px-4 font-medium">Movimentação</th>
+                                <th class="py-3 px-4 font-medium">Período</th>
+                                <th class="py-3 px-4 font-medium text-right rounded-tr-lg">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="text-sm">
+                            <!-- As linhas serão inseridas via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Estado vazio -->
+                <div id="empty-state" class="hidden flex-col items-center justify-center py-12 text-slate-400">
+                    <svg class="w-12 h-12 mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <p>Nenhuma cobertura registrada ainda.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container de Notificação na Tela -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <!-- Modal Customizado -->
+    <div id="custom-modal" class="fixed inset-0 bg-slate-900/50 hidden flex-col items-center justify-center z-50 p-4">
+        <div id="modal-content" class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 modal-enter">
+            <h3 id="modal-title" class="text-xl font-bold text-slate-800 mb-2">Título</h3>
+            <p id="modal-desc" class="text-sm text-slate-500 mb-5">Descrição.</p>
+            
+            <form id="modal-form">
+                <input id="modal-input" type="text" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4">
+                <input id="modal-input-2" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-5 hidden">
+                
+                <div class="flex justify-end gap-3 mt-2">
+                    <button type="button" onclick="window.closeModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="modal-confirm-btn" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                        Confirmar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Script de Lógica e Nuvem (Usando type="module" para Firebase) -->
+    <script type="module">
+        // Importações do Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuração do Firebase Injetada pelo Sistema da Canvas
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'banco-horas-app';
+
+        // Variável Global para a Sessão
+        let currentUser = null;
+
+        // Estado Padrão (Hash inicial equivale a "admin123" usando SHA-256)
+        let state = {
+            passwordHash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+            employees: {
+                'A': { id: 'A', name: 'Funcionário A', balance: 0 },
+                'B': { id: 'B', name: 'Funcionário B', balance: 0 }
+            },
+            transactions: []
+        };
+
+        // --- FUNÇÕES DE SEGURANÇA (CRIPTOGRAFIA) ---
+        
+        // Criptografa a senha irreversivelmente usando a API nativa do navegador (SHA-256)
+        async function hashPassword(password) {
+            const msgBuffer = new TextEncoder().encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // --- LÓGICA DE DADOS (CLOUD) ---
+        
+        // Salva as alterações na Nuvem
+        window.saveStateToCloud = async function() {
+            if (!currentUser) return;
+            try {
+                // Usa um caminho público padronizado para que os funcionários compartilhem o mesmo arquivo de dados
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'timebank_state', 'main_document');
+                await setDoc(docRef, state);
+            } catch(e) {
+                console.error("Erro ao salvar:", e);
+                window.showNotification("Erro ao sincronizar com servidor.", "error");
+            }
+        };
+
+        // Autenticação Inicial para liberar o acesso ao banco
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch(e) {
+                console.error("Auth error:", e);
+                document.getElementById('loading-screen').classList.add('hidden');
+                window.showNotification("Erro na autenticação de segurança.", "error");
+            }
+        };
+
+        // Monitor de estado em tempo real (Qualquer alteração feita por alguém aparece na hora)
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'timebank_state', 'main_document');
+                
+                onSnapshot(docRef, (docSnap) => {
+                    document.getElementById('loading-screen').classList.add('hidden'); // Remove tela de carregamento
+                    
+                    if (docSnap.exists()) {
+                        // Se já existir banco salvo na nuvem, carrega ele
+                        state = docSnap.data();
+                    } else {
+                        // Se for a primeira vez abrindo o app, salva o estado padrão e inicializa
+                        window.saveStateToCloud();
+                    }
+                    
+                    window.updateDashboard();
+                    window.updateHistory();
+                }, (error) => {
+                    console.error("Snapshot error:", error);
+                    window.showNotification("Falha na leitura dos dados em tempo real.", "error");
+                    document.getElementById('loading-screen').classList.add('hidden');
+                });
+            }
+        });
+
+        // Inicia o processo
+        initAuth();
+
+        // --- INTERFACE E LÓGICA DE NEGÓCIO ---
+
+        window.calculateHours = function(start, end) {
+            if (!start || !end) return 0;
+            const [startH, startM] = start.split(':').map(Number);
+            const [endH, endM] = end.split(':').map(Number);
+            
+            let startDec = startH + (startM / 60);
+            let endDec = endH + (endM / 60);
+            
+            if (endDec < startDec) endDec += 24; // Virada de noite
+            return endDec - startDec;
+        };
+
+        window.formatHours = function(hours) {
+            const formatted = Number.isInteger(hours) ? hours : hours.toFixed(1);
+            if (hours > 0) return `+${formatted}h`;
+            if (hours < 0) return `${formatted}h`;
+            return `0h`;
+        };
+
+        window.formatDate = function(dateString) {
+            const [year, month, day] = dateString.split('-');
+            return `${day}/${month}/${year}`;
+        };
+
+        window.updateSelects = function() {
+            const selects = [document.getElementById('input-coverer'), document.getElementById('input-covered')];
+            selects.forEach(select => {
+                const currentVal = select.value;
+                select.innerHTML = `<option value="" disabled ${!currentVal ? 'selected' : ''}>Selecione...</option>`;
+                Object.values(state.employees).forEach(emp => {
+                    const option = document.createElement('option');
+                    option.value = emp.id;
+                    option.textContent = emp.name;
+                    if (emp.id === currentVal) option.selected = true;
+                    select.appendChild(option);
+                });
+            });
+        };
+
+        window.updateDashboard = function() {
+            const empA = state.employees['A'];
+            const empB = state.employees['B'];
+
+            document.getElementById('display-name-A').textContent = empA.name;
+            document.getElementById('display-name-B').textContent = empB.name;
+
+            const elBalanceA = document.getElementById('balance-A');
+            const elBalanceB = document.getElementById('balance-B');
+
+            elBalanceA.textContent = window.formatHours(empA.balance);
+            elBalanceB.textContent = window.formatHours(empB.balance);
+
+            const applyColor = (element, balance) => {
+                element.className = 'text-4xl font-bold transition-colors';
+                if (balance > 0) element.classList.add('text-emerald-600');
+                else if (balance < 0) element.classList.add('text-rose-600');
+                else element.classList.add('text-slate-400');
+            };
+
+            applyColor(elBalanceA, empA.balance);
+            applyColor(elBalanceB, empB.balance);
+            window.updateSelects();
+        };
+
+        window.updateHistory = function() {
+            const tbody = document.getElementById('history-table-body');
+            const emptyState = document.getElementById('empty-state');
+            tbody.innerHTML = '';
+
+            if (!state.transactions || state.transactions.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+
+            const sortedTransactions = [...state.transactions].sort((a, b) => b.id - a.id);
+
+            sortedTransactions.forEach(tx => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-100 hover:bg-slate-50 transition-colors';
+                
+                const covererName = state.employees[tx.coverer].name;
+                const coveredName = state.employees[tx.covered].name;
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-slate-600 whitespace-nowrap">${window.formatDate(tx.date)}</td>
+                    <td class="py-3 px-4">
+                        <span class="font-medium text-emerald-600">${covererName}</span> 
+                        <span class="text-slate-400 text-xs mx-1">cobriu</span> 
+                        <span class="font-medium text-rose-600">${coveredName}</span>
+                    </td>
+                    <td class="py-3 px-4 text-slate-500 text-sm whitespace-nowrap">
+                        ${tx.start} às ${tx.end}
+                    </td>
+                    <td class="py-3 px-4 text-right font-bold text-slate-800">${window.formatHours(tx.hours).replace('+', '')}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        };
+
+        window.showNotification = function(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgColor = type === 'success' ? 'bg-emerald-600' : 'bg-rose-600';
+            const icon = type === 'success' 
+                ? `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
+                : `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 toast-enter toast-enter-active`;
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.replace('toast-enter-active', 'toast-exit-active');
+                setTimeout(() => { if(container.contains(toast)) container.removeChild(toast); }, 300);
+            }, 4000);
+        };
+
+        // --- SISTEMA DE MODAL GENÉRICO E AÇÕES DE SENHA ---
+        
+        let currentModalAction = null;
+
+        window.openModal = function(options) {
+            document.getElementById('modal-title').textContent = options.title;
+            document.getElementById('modal-desc').textContent = options.desc;
+            
+            const input1 = document.getElementById('modal-input');
+            input1.type = options.inputType || 'text';
+            input1.value = options.initialValue || '';
+            input1.placeholder = options.placeholder || '';
+            input1.required = true;
+
+            const input2 = document.getElementById('modal-input-2');
+            if (options.showSecondInput) {
+                input2.type = options.secondInputType || 'text';
+                input2.value = '';
+                input2.placeholder = options.secondPlaceholder || '';
+                input2.required = true;
+                input2.classList.remove('hidden');
+            } else {
+                input2.required = false;
+                input2.classList.add('hidden');
+            }
+            
+            currentModalAction = options.onConfirm;
+
+            const modal = document.getElementById('custom-modal');
+            const content = document.getElementById('modal-content');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => content.classList.add('modal-enter-active'), 10);
+            input1.focus();
+        };
+
+        window.closeModal = function() {
+            const modal = document.getElementById('custom-modal');
+            const content = document.getElementById('modal-content');
+            
+            content.classList.remove('modal-enter-active');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.getElementById('modal-form').reset();
+                currentModalAction = null;
+            }, 200);
+        };
+
+        document.getElementById('modal-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const val1 = document.getElementById('modal-input').value;
+            const val2 = document.getElementById('modal-input-2').value;
+            if (currentModalAction) currentModalAction(val1, val2);
+        });
+
+        // Ações Restritas
+        window.requestNameChange = function(empId) {
+            const emp = state.employees[empId];
+            window.openModal({
+                title: 'Editar Nome',
+                desc: `Digite o novo nome para ${emp.name}:`,
+                initialValue: emp.name,
+                onConfirm: async (newName) => {
+                    if (newName.trim()) {
+                        state.employees[empId].name = newName.trim();
+                        await window.saveStateToCloud(); // Sincroniza
+                        window.showNotification('Nome atualizado e salvo na nuvem!');
+                        window.closeModal();
+                    }
+                }
+            });
+        };
+
+        window.requestReset = function() {
+            window.openModal({
+                title: 'Atenção: Zerar Sistema',
+                desc: 'Esta ação apagará todos os saldos de todos os usuários. Digite a senha do gestor:',
+                inputType: 'password',
+                placeholder: 'Senha do Gestor',
+                onConfirm: async (password) => {
+                    const inputHash = await hashPassword(password);
+                    if (inputHash === state.passwordHash) {
+                        state.employees['A'].balance = 0;
+                        state.employees['B'].balance = 0;
+                        state.transactions = [];
+                        await window.saveStateToCloud(); // Sincroniza
+                        window.showNotification('Sistema zerado globalmente com sucesso!', 'success');
+                        window.closeModal();
+                    } else {
+                        window.showNotification('Senha incorreta!', 'error');
+                    }
+                }
+            });
+        };
+
+        window.requestPasswordChange = function() {
+            window.openModal({
+                title: 'Trocar Senha do Gestor',
+                desc: 'Preencha os campos abaixo para configurar uma nova senha de segurança:',
+                inputType: 'password',
+                placeholder: 'Senha Atual',
+                showSecondInput: true,
+                secondInputType: 'password',
+                secondPlaceholder: 'Nova Senha',
+                onConfirm: async (currentPw, newPw) => {
+                    const currentHash = await hashPassword(currentPw);
+                    if (currentHash === state.passwordHash) {
+                        if (newPw.length < 4) {
+                            window.showNotification('A nova senha deve ter no mínimo 4 caracteres.', 'error');
+                            return;
+                        }
+                        const newHash = await hashPassword(newPw);
+                        state.passwordHash = newHash;
+                        await window.saveStateToCloud(); // Salva a nova senha
+                        window.showNotification('Senha alterada com sucesso!', 'success');
+                        window.closeModal();
+                    } else {
+                        window.showNotification('Senha atual incorreta!', 'error');
+                    }
+                }
+            });
+        };
+
+        // Lida com formulário e atualiza Cloud
+        document.getElementById('coverage-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const date = document.getElementById('input-date').value;
+            const coverer = document.getElementById('input-coverer').value;
+            const covered = document.getElementById('input-covered').value;
+            const start = document.getElementById('input-start').value;
+            const end = document.getElementById('input-end').value;
+
+            if (coverer === covered) {
+                window.showNotification('Um funcionário não pode cobrir a si mesmo!', 'error');
+                return;
+            }
+
+            const hours = window.calculateHours(start, end);
+
+            if (hours === 0) {
+                window.showNotification('Os horários de início e fim não podem ser iguais.', 'error');
+                return;
+            }
+
+            const transaction = { id: Date.now(), date, coverer, covered, start, end, hours };
+
+            state.employees[coverer].balance += hours;
+            state.employees[covered].balance -= hours;
+            if(!state.transactions) state.transactions = [];
+            state.transactions.push(transaction);
+
+            // Sincroniza essa alteração com a Nuvem
+            await window.saveStateToCloud();
+
+            this.reset();
+            document.getElementById('input-date').valueAsDate = new Date();
+            document.getElementById('hours-preview').classList.add('hidden');
+            window.showNotification('Cobertura salva na nuvem com sucesso!');
+        });
+
+        // Configuração de Previsão de Horas Visual
+        const updateHoursPreview = () => {
+            const start = document.getElementById('input-start').value;
+            const end = document.getElementById('input-end').value;
+            const previewEl = document.getElementById('hours-preview');
+            const previewVal = document.getElementById('hours-preview-val');
+
+            if (start && end) {
+                const hours = window.calculateHours(start, end);
+                previewVal.textContent = window.formatHours(hours);
+                previewEl.classList.remove('hidden');
+            } else {
+                previewEl.classList.add('hidden');
+            }
+        };
+
+        document.getElementById('input-start').addEventListener('input', updateHoursPreview);
+        document.getElementById('input-end').addEventListener('input', updateHoursPreview);
+
+        // Define data inicial do formulário
+        document.getElementById('input-date').valueAsDate = new Date();
+
+    </script>
+</body>
+</html>
