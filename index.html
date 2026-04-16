@@ -31,7 +31,7 @@
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-800 pb-10">
 
-    <!-- Tela de Carregamento (Enquanto conecta ao Banco de Dados) -->
+    <!-- Tela de Carregamento -->
     <div id="loading-screen" class="fixed inset-0 bg-slate-50 z-[100] flex flex-col items-center justify-center">
         <div class="loader mb-4"></div>
         <p class="text-slate-500 font-medium">Sincronizando dados com a nuvem...</p>
@@ -198,27 +198,30 @@
         </div>
     </div>
 
-    <!-- Script de Lógica e Nuvem (Usando type="module" para Firebase) -->
+    <!-- Script de Lógica e Nuvem (Firebase) -->
     <script type="module">
-        // Importações do Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuração do Firebase Injetada pelo Sistema da Canvas
+        // SUA CONFIGURAÇÃO DO FIREBASE FOI INSERIDA AQUI!
         const firebaseConfig = {
-            apiKey: "AIzaSyDkDdoylWPvyNcvSmO9tWcjSXB4ANrgs3o",
-            authDomain: "comp-time-539a1.firebaseapp.com",
-            projectId: "comp-time-539a1",
-            storageBucket: "comp-time-539a1.firebasestorage.app",
-            messagingSenderId: "850307341504",
-            appId: "1:850307341504:web:8e75e347f2489e485a6125"
-            };
+          apiKey: "AIzaSyDkDdoylWPvyNcvSmO9tWcjSXB4ANrgs3o",
+          authDomain: "comp-time-539a1.firebaseapp.com",
+          projectId: "comp-time-539a1",
+          storageBucket: "comp-time-539a1.firebasestorage.app",
+          messagingSenderId: "850307341504",
+          appId: "1:850307341504:web:8e75e347f2489e485a6125"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'banco-horas-empresa'; 
 
-        // Variável Global para a Sessão
         let currentUser = null;
 
-        // Estado Padrão (Hash inicial equivale a "admin123" usando SHA-256)
+        // Estado Padrão (A senha inicial é "admin123")
         let state = {
             passwordHash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
             employees: {
@@ -228,77 +231,60 @@
             transactions: []
         };
 
-        // --- FUNÇÕES DE SEGURANÇA (CRIPTOGRAFIA) ---
-        
-        // Criptografa a senha irreversivelmente usando a API nativa do navegador (SHA-256)
         async function hashPassword(password) {
             const msgBuffer = new TextEncoder().encode(password);
             const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
-
-        // --- LÓGICA DE DADOS (CLOUD) ---
         
-        // Salva as alterações na Nuvem
         window.saveStateToCloud = async function() {
             if (!currentUser) return;
             try {
-                // Usa um caminho público padronizado para que os funcionários compartilhem o mesmo arquivo de dados
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'timebank_state', 'main_document');
+                const docRef = doc(db, 'dados', appId, 'estado_geral', 'documento_principal');
                 await setDoc(docRef, state);
             } catch(e) {
                 console.error("Erro ao salvar:", e);
-                window.showNotification("Erro ao sincronizar com servidor.", "error");
+                window.showNotification("Erro ao salvar dados na nuvem.", "error");
             }
         };
 
-        // Autenticação Inicial para liberar o acesso ao banco
         const initAuth = async () => {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // Tenta fazer o login anônimo silencioso (Necessário estar ativado no painel do Firebase)
+                await signInAnonymously(auth);
             } catch(e) {
                 console.error("Auth error:", e);
                 document.getElementById('loading-screen').classList.add('hidden');
-                window.showNotification("Erro na autenticação de segurança.", "error");
+                window.showNotification("Erro de conexão. Verifique se o Login Anônimo está ativado no Firebase.", "error");
             }
         };
 
-        // Monitor de estado em tempo real (Qualquer alteração feita por alguém aparece na hora)
         onAuthStateChanged(auth, (user) => {
             currentUser = user;
             if (user) {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'timebank_state', 'main_document');
+                const docRef = doc(db, 'dados', appId, 'estado_geral', 'documento_principal');
                 
                 onSnapshot(docRef, (docSnap) => {
-                    document.getElementById('loading-screen').classList.add('hidden'); // Remove tela de carregamento
+                    document.getElementById('loading-screen').classList.add('hidden');
                     
                     if (docSnap.exists()) {
-                        // Se já existir banco salvo na nuvem, carrega ele
                         state = docSnap.data();
                     } else {
-                        // Se for a primeira vez abrindo o app, salva o estado padrão e inicializa
                         window.saveStateToCloud();
                     }
                     
                     window.updateDashboard();
                     window.updateHistory();
                 }, (error) => {
-                    console.error("Snapshot error:", error);
-                    window.showNotification("Falha na leitura dos dados em tempo real.", "error");
+                    console.error("Erro no Snapshot:", error);
+                    window.showNotification("Falha na leitura dos dados.", "error");
                     document.getElementById('loading-screen').classList.add('hidden');
                 });
             }
         });
 
-        // Inicia o processo
         initAuth();
-
-        // --- INTERFACE E LÓGICA DE NEGÓCIO ---
 
         window.calculateHours = function(start, end) {
             if (!start || !end) return 0;
@@ -308,7 +294,7 @@
             let startDec = startH + (startM / 60);
             let endDec = endH + (endM / 60);
             
-            if (endDec < startDec) endDec += 24; // Virada de noite
+            if (endDec < startDec) endDec += 24;
             return endDec - startDec;
         };
 
@@ -422,8 +408,6 @@
             }, 4000);
         };
 
-        // --- SISTEMA DE MODAL GENÉRICO E AÇÕES DE SENHA ---
-        
         let currentModalAction = null;
 
         window.openModal = function(options) {
@@ -479,7 +463,6 @@
             if (currentModalAction) currentModalAction(val1, val2);
         });
 
-        // Ações Restritas
         window.requestNameChange = function(empId) {
             const emp = state.employees[empId];
             window.openModal({
@@ -489,7 +472,7 @@
                 onConfirm: async (newName) => {
                     if (newName.trim()) {
                         state.employees[empId].name = newName.trim();
-                        await window.saveStateToCloud(); // Sincroniza
+                        await window.saveStateToCloud();
                         window.showNotification('Nome atualizado e salvo na nuvem!');
                         window.closeModal();
                     }
@@ -500,7 +483,7 @@
         window.requestReset = function() {
             window.openModal({
                 title: 'Atenção: Zerar Sistema',
-                desc: 'Esta ação apagará todos os saldos de todos os usuários. Digite a senha do gestor:',
+                desc: 'Esta ação apagará todos os saldos e histórico permanentemente. Digite a senha do gestor:',
                 inputType: 'password',
                 placeholder: 'Senha do Gestor',
                 onConfirm: async (password) => {
@@ -509,8 +492,8 @@
                         state.employees['A'].balance = 0;
                         state.employees['B'].balance = 0;
                         state.transactions = [];
-                        await window.saveStateToCloud(); // Sincroniza
-                        window.showNotification('Sistema zerado globalmente com sucesso!', 'success');
+                        await window.saveStateToCloud();
+                        window.showNotification('Sistema zerado com sucesso!', 'success');
                         window.closeModal();
                     } else {
                         window.showNotification('Senha incorreta!', 'error');
@@ -522,7 +505,7 @@
         window.requestPasswordChange = function() {
             window.openModal({
                 title: 'Trocar Senha do Gestor',
-                desc: 'Preencha os campos abaixo para configurar uma nova senha de segurança:',
+                desc: 'Preencha os campos abaixo:',
                 inputType: 'password',
                 placeholder: 'Senha Atual',
                 showSecondInput: true,
@@ -537,7 +520,7 @@
                         }
                         const newHash = await hashPassword(newPw);
                         state.passwordHash = newHash;
-                        await window.saveStateToCloud(); // Salva a nova senha
+                        await window.saveStateToCloud();
                         window.showNotification('Senha alterada com sucesso!', 'success');
                         window.closeModal();
                     } else {
@@ -547,7 +530,6 @@
             });
         };
 
-        // Lida com formulário e atualiza Cloud
         document.getElementById('coverage-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -565,7 +547,7 @@
             const hours = window.calculateHours(start, end);
 
             if (hours === 0) {
-                window.showNotification('Os horários de início e fim não podem ser iguais.', 'error');
+                window.showNotification('Os horários não podem ser iguais.', 'error');
                 return;
             }
 
@@ -576,16 +558,14 @@
             if(!state.transactions) state.transactions = [];
             state.transactions.push(transaction);
 
-            // Sincroniza essa alteração com a Nuvem
             await window.saveStateToCloud();
 
             this.reset();
             document.getElementById('input-date').valueAsDate = new Date();
             document.getElementById('hours-preview').classList.add('hidden');
-            window.showNotification('Cobertura salva na nuvem com sucesso!');
+            window.showNotification('Cobertura salva com sucesso!');
         });
 
-        // Configuração de Previsão de Horas Visual
         const updateHoursPreview = () => {
             const start = document.getElementById('input-start').value;
             const end = document.getElementById('input-end').value;
@@ -603,8 +583,6 @@
 
         document.getElementById('input-start').addEventListener('input', updateHoursPreview);
         document.getElementById('input-end').addEventListener('input', updateHoursPreview);
-
-        // Define data inicial do formulário
         document.getElementById('input-date').valueAsDate = new Date();
 
     </script>
