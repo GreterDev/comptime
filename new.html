@@ -1,5 +1,4 @@
- 
-```html
+ ```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -21,7 +20,7 @@
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
             <div class="text-center mb-8">
                 <h1 class="text-2xl font-bold text-slate-900">Acesso Restrito</h1>
-                <p class="text-slate-500">Entre com suas credenciais de gestor</p>
+                <p class="text-slate-500">Entre com as suas credenciais de gestor</p>
             </div>
             <form id="login-form" class="space-y-4">
                 <div>
@@ -123,7 +122,7 @@
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // COLOQUE SUAS CHAVES AQUI
+        // CONFIGURAÇÃO DO SEU FIREBASE
         const firebaseConfig = {
           apiKey: "AIzaSyDkDdoylWPvyNcvSmO9tWcjSXB4ANrgs3o",
           authDomain: "comp-time-539a1.firebaseapp.com",
@@ -177,14 +176,12 @@
 
         // --- DATA SYNC ---
         function initDataSync() {
-            // Sync Funcionários
             onSnapshot(collection(db, "funcionarios"), (snap) => {
                 employees = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderEmployees();
                 updateSelects();
             });
 
-            // Sync Transações
             const q = query(collection(db, "transacoes"), orderBy("timestamp", "desc"), limit(50));
             onSnapshot(q, (snap) => {
                 transactions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -200,7 +197,6 @@
             list.innerHTML = '';
 
             employees.forEach(emp => {
-                // Dashboard Cards
                 const card = document.createElement('div');
                 card.className = "bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center";
                 const balanceColor = emp.saldo > 0 ? 'text-emerald-600' : (emp.saldo < 0 ? 'text-rose-600' : 'text-slate-400');
@@ -210,7 +206,6 @@
                 `;
                 grid.appendChild(card);
 
-                // Settings List
                 const li = document.createElement('li');
                 li.className = "py-4 flex justify-between items-center";
                 li.innerHTML = `
@@ -237,13 +232,15 @@
             });
         }
 
+        // --- FUNÇÃO ATUALIZADA AQUI ---
         function updateSelects() {
             const sel1 = document.getElementById('input-coverer');
             const sel2 = document.getElementById('input-covered');
             const options = employees.map(e => `<option value="${e.id}">${e.nome}</option>`).join('');
-            const placeholder = `<option value="" disabled selected>Selecione...</option>`;
-            sel1.innerHTML = placeholder + options;
-            sel2.innerHTML = placeholder + options;
+            
+            // Define o texto descritivo correto para cada campo
+            sel1.innerHTML = `<option value="" disabled selected>Quem cobriu?</option>` + options;
+            sel2.innerHTML = `<option value="" disabled selected>Quem foi coberto?</option>` + options;
         }
 
         // --- ACTIONS ---
@@ -252,7 +249,6 @@
             document.getElementById('view-settings').classList.toggle('hidden', view !== 'settings');
         };
 
-        // Adicionar Funcionário
         document.getElementById('add-employee-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const nome = document.getElementById('new-employee-name').value;
@@ -262,12 +258,11 @@
         });
 
         window.deleteEmployee = async (id) => {
-            if (confirm("Deseja realmente excluir? Isso não apagará o histórico, mas o funcionário sumirá do painel.")) {
+            if (confirm("Deseja realmente excluir este funcionário?")) {
                 await deleteDoc(doc(db, "funcionarios", id));
             }
         };
 
-        // Lançar Cobertura
         document.getElementById('coverage-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const idCoverer = document.getElementById('input-coverer').value;
@@ -277,7 +272,6 @@
             
             if (idCoverer === idCovered) return showNotification("Não pode cobrir a si mesmo!", "error");
 
-            // Cálculo Horas
             const [h1, m1] = start.split(':').map(Number);
             const [h2, m2] = end.split(':').map(Number);
             let diff = (h2 + m2/60) - (h1 + m1/60);
@@ -286,7 +280,6 @@
             const coverer = employees.find(e => e.id === idCoverer);
             const covered = employees.find(e => e.id === idCovered);
 
-            // Gravar Transação
             await addDoc(collection(db, "transacoes"), {
                 data: document.getElementById('input-date').value,
                 idCoverer, quemCobriu: coverer.nome,
@@ -295,7 +288,6 @@
                 timestamp: Date.now()
             });
 
-            // Atualizar Saldos
             await setDoc(doc(db, "funcionarios", idCoverer), { saldo: coverer.saldo + diff }, { merge: true });
             await setDoc(doc(db, "funcionarios", idCovered), { saldo: covered.saldo - diff }, { merge: true });
 
@@ -312,7 +304,7 @@
                 if (covered) await setDoc(doc(db, "funcionarios", idCovered), { saldo: covered.saldo + horas }, { merge: true });
                 
                 await deleteDoc(doc(db, "transacoes", txId));
-                showNotification("Registro removido e horas estornadas.");
+                showNotification("Registro removido.");
             }
         };
 
@@ -329,29 +321,5 @@
     </script>
 </body>
 </html>
-
-```
-### Configurações Necessárias no seu Firebase:
-Para que esse código funcione, você precisa ativar duas coisas no painel do Firebase:
- 1. **Authentication (Login):**
-   * Vá em **Authentication** -> **Sign-in Method**.
-   * Ative o provedor **E-mail/Senha**.
-   * Vá na aba **Users** (Usuários) e clique em **Add User**. Cadastre o e-mail e a senha que você usará para gerenciar o sistema.
- 2. **Firestore (Regras de Segurança):**
-   * Como agora temos login, mude as regras do seu Firestore para garantir que apenas pessoas logadas possam mexer:
-   ```javascript
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /{document=**} {
-         allow read, write: if request.auth != null;
-       }
-     }
-   }
-   
-   
-   
-   ```
-```
 
 ```
