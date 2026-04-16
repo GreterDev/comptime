@@ -206,11 +206,14 @@
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Configuração do Firebase Injetada pelo Sistema da Canvas
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'banco-horas-app';
+        const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "seu-projeto.firebaseapp.com",
+  projectId: "seu-projeto",
+  storageBucket: "seu-projeto.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef123"
+};
 
         // Variável Global para a Sessão
         let currentUser = null;
